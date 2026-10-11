@@ -80,8 +80,6 @@ RUN_ID_FILENAME = "mlflow_run_id.txt"
 METRICS_FILENAME = "metrics.json"
 ARTIFACTS_SUBDIR = "artifacts"
 
-RETURN_PLOT_FILENAME = "actual_vs_predicted_return.png"
-RETURN_RESIDUAL_FILENAME = "residual_plot_return.png"
 PRICE_PLOT_FILENAME = "actual_vs_predicted_price.png"
 PRICE_RESIDUAL_FILENAME = "residual_plot_price.png"
 TEST_PREDICTIONS_FILENAME = "test_predictions.csv"
@@ -204,9 +202,7 @@ def print_metrics(label: str, metrics: dict) -> None:
         print(f"{name:>5}: {metrics[name]:.6f}")
 
 
-# ---------------------------------------------------------------------------
-# Harga mentah: validasi dan rekonstruksi (diadaptasi dari modelling_tuning.py)
-# ---------------------------------------------------------------------------
+# Load Raw Prices
 def load_raw_prices(path: str) -> pd.DataFrame:
     if not os.path.exists(path):
         raise FileNotFoundError(f"File harga mentah tidak ditemukan: {path}")
@@ -269,9 +265,7 @@ def reconstruct_predicted_prices(prev_price, y_pred_return):
     return prev_price.to_numpy() * (1.0 + y_pred_return)
 
 
-# ---------------------------------------------------------------------------
-# Artefak
-# ---------------------------------------------------------------------------
+# Artifact
 def save_actual_vs_predicted(dates, y_true, y_pred, path, title, ylabel):
     plt.figure(figsize=(12, 5))
     plt.plot(dates, y_true, label="Aktual", linewidth=1)
@@ -363,25 +357,24 @@ def main(argv=None) -> None:
 
     df = load_dataset(data_path)
 
-    price_evaluation = True
     try:
         raw_price_path = resolve_raw_price_path(args.raw_price_path)
         raw = load_raw_prices(raw_price_path)
-        validate_returns(df, raw)
-        df = attach_prices(df, raw)
-    except (FileNotFoundError, ValueError) as exc:
-        price_evaluation = False
-        raw_price_path = None
-        print(
-            "[PERINGATAN] Evaluasi tingkat harga dilewati. "
-            f"Alasan: {exc}\n"
-            "Evaluasi tingkat return tetap dijalankan dan dilaporkan."
-        )
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            "Data harga mentah (harga emas USD) wajib tersedia untuk evaluasi "
+            "tingkat harga. "
+            f"{exc}"
+        ) from exc
+
+    validate_returns(df, raw)
+    df = attach_prices(df, raw)
 
     train_df, test_df, x_train, y_train, x_test, y_test = chronological_split(df)
 
     print(f"Tracking URI         : {tracking_uri}")
     print(f"Dataset              : {data_path}")
+    print(f"Data harga mentah    : {raw_price_path}")
     print(f"Jumlah baris         : {len(df)}")
     print(
         f"Rentang tanggal      : {df[DATE_COLUMN].min().date()} "
@@ -390,7 +383,7 @@ def main(argv=None) -> None:
     print(f"Fitur                : {FEATURE_COLUMNS}")
     print(f"Target               : {TARGET_COLUMN}")
     print(f"Data training/testing: {len(x_train)} / {len(x_test)}")
-    print(f"Evaluasi harga USD   : {'aktif' if price_evaluation else 'dilewati'}")
+    print(f"Evaluasi harga USD   : aktif")
 
     params = {
         "model": "RandomForestRegressor",
@@ -424,24 +417,6 @@ def main(argv=None) -> None:
 
         logged_metrics = {}
 
-        # ----- Artefak tingkat return -----
-        return_plot_path = save_actual_vs_predicted(
-            test_df[DATE_COLUMN],
-            y_test.to_numpy(),
-            y_pred_test,
-            os.path.join(artifacts_dir, RETURN_PLOT_FILENAME),
-            "Aktual vs Prediksi Return Emas - Data Testing",
-            "Return",
-        )
-        return_residual_path = save_residual_plot(
-            test_df[DATE_COLUMN],
-            y_test.to_numpy(),
-            y_pred_test,
-            os.path.join(artifacts_dir, RETURN_RESIDUAL_FILENAME),
-            "Residual Return Emas (Aktual - Prediksi) pada Data Testing",
-            "Residual Return",
-        )
-
         summary = {
             "run_id": run_id,
             "experiment_id": run.info.experiment_id,
@@ -460,7 +435,7 @@ def main(argv=None) -> None:
             "predictions": {},
         }
 
-        artifact_paths = [return_plot_path, return_residual_path]
+        artifact_paths = []
 
         test_predictions = pd.DataFrame(
             {
@@ -470,60 +445,58 @@ def main(argv=None) -> None:
             }
         )
 
-        if price_evaluation:
-            train_price_pred = reconstruct_predicted_prices(
-                train_df["prev_price"], y_pred_train
-            )
-            train_price_true = train_df["actual_price"].to_numpy()
-            train_price_metrics = evaluate(train_price_true, train_price_pred)
+        train_price_pred = reconstruct_predicted_prices(
+            train_df["prev_price"], y_pred_train
+        )
+        train_price_true = train_df["actual_price"].to_numpy()
+        train_price_metrics = evaluate(train_price_true, train_price_pred)
 
-            test_price_pred = reconstruct_predicted_prices(
-                test_df["prev_price"], y_pred_test
-            )
-            test_price_true = test_df["actual_price"].to_numpy()
-            test_price_metrics = evaluate(test_price_true, test_price_pred)
+        test_price_pred = reconstruct_predicted_prices(
+            test_df["prev_price"], y_pred_test
+        )
+        test_price_true = test_df["actual_price"].to_numpy()
+        test_price_metrics = evaluate(test_price_true, test_price_pred)
 
-            print_metrics("Training (Harga USD)", train_price_metrics)
-            print_metrics("Testing (Harga USD)", test_price_metrics)
+        print_metrics("Training (Harga USD)", train_price_metrics)
+        print_metrics("Testing (Harga USD)", test_price_metrics)
 
-            logged_metrics.update(
-                {f"train_price_{k}": v for k, v in train_price_metrics.items()}
-            )
-            logged_metrics.update(
-                {f"test_price_{k}": v for k, v in test_price_metrics.items()}
-            )
+        logged_metrics.update(
+            {f"train_price_{k}": v for k, v in train_price_metrics.items()}
+        )
+        logged_metrics.update(
+            {f"test_price_{k}": v for k, v in test_price_metrics.items()}
+        )
 
-            price_plot_path = save_actual_vs_predicted(
-                test_df[DATE_COLUMN],
-                test_price_true,
-                test_price_pred,
-                os.path.join(artifacts_dir, PRICE_PLOT_FILENAME),
-                "Aktual vs Prediksi Harga Emas (USD) - Data Testing",
-                "Harga Emas (USD)",
-            )
-            price_residual_path = save_residual_plot(
-                test_df[DATE_COLUMN],
-                test_price_true,
-                test_price_pred,
-                os.path.join(artifacts_dir, PRICE_RESIDUAL_FILENAME),
-                "Residual Harga Emas (Aktual - Prediksi) pada Data Testing",
-                "Residual (USD)",
-            )
-            artifact_paths.extend([price_plot_path, price_residual_path])
+        price_plot_path = save_actual_vs_predicted(
+            test_df[DATE_COLUMN],
+            test_price_true,
+            test_price_pred,
+            os.path.join(artifacts_dir, PRICE_PLOT_FILENAME),
+            "Aktual vs Prediksi Harga Emas (USD) - Data Testing",
+            "Harga Emas (USD)",
+        )
+        price_residual_path = save_residual_plot(
+            test_df[DATE_COLUMN],
+            test_price_true,
+            test_price_pred,
+            os.path.join(artifacts_dir, PRICE_RESIDUAL_FILENAME),
+            "Residual Harga Emas (Aktual - Prediksi) pada Data Testing",
+            "Residual (USD)",
+        )
+        artifact_paths.extend([price_plot_path, price_residual_path])
 
-            test_predictions["actual_price"] = test_price_true
-            test_predictions["predicted_price"] = test_price_pred
+        test_predictions["actual_price"] = test_price_true
+        test_predictions["predicted_price"] = test_price_pred
 
-            summary["raw_price_path"] = raw_price_path
-            summary["predictions"]["price"] = {
-                "train": train_price_metrics,
-                "test": test_price_metrics,
-            }
-            summary["train_price"] = train_price_metrics
-            summary["test_price"] = test_price_metrics
+        summary["raw_price_path"] = raw_price_path
+        summary["predictions"]["price"] = {
+            "train": train_price_metrics,
+            "test": test_price_metrics,
+        }
+        summary["train_price"] = train_price_metrics
+        summary["test_price"] = test_price_metrics
 
-        if logged_metrics:
-            mlflow.log_metrics(logged_metrics)
+        mlflow.log_metrics(logged_metrics)
         log_model(model)
 
         write_outputs(output_dir, run_id, summary)

@@ -1,4 +1,4 @@
-name: Preprocessing Dataset Harga Emas dan Swiss Franc
+name: Gold and Swiss Franc Dataset Preprocessing
 
 on:
   push:
@@ -34,6 +34,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r preprocessing/requirements.txt
+
+      - name: Verify raw inputs are present
+        run: |
+          set -euo pipefail
+          test -f "data/raw/XAU_USD Historical Data.csv"
+          test -f "data/raw/CHF_USD Historical Data.csv"
 
       - name: Run preprocessing script
         run: python preprocessing/preprocessing.py

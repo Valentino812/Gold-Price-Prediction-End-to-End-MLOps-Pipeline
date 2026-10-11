@@ -98,6 +98,7 @@ jobs:
             --env-manager=conda \
             --experiment-name "$MLFLOW_EXPERIMENT_NAME" \
             -P data_path="$GITHUB_WORKSPACE/data/processed/harga_emas_dan_swiss_franc_preprocessing.csv" \
+            -P raw_price_path="$GITHUB_WORKSPACE/data/raw/XAU_USD Historical Data.csv" \
             -P output_dir="$GITHUB_WORKSPACE/MLProject/outputs"
 
       - name: Verify training outputs exist
@@ -105,9 +106,9 @@ jobs:
           set -euo pipefail
           test -f MLProject/outputs/mlflow_run_id.txt
           test -f MLProject/outputs/metrics.json
-          test -f MLProject/outputs/artifacts/actual_vs_predicted_return.png
-          test -f MLProject/outputs/artifacts/residual_plot_return.png
           test -f MLProject/outputs/artifacts/test_predictions.csv
+          test -f MLProject/outputs/artifacts/actual_vs_predicted_price.png
+          test -f MLProject/outputs/artifacts/residual_plot_price.png
           echo "Run ID  : $(cat MLProject/outputs/mlflow_run_id.txt)"
           echo "Metrics :"
           cat MLProject/outputs/metrics.json

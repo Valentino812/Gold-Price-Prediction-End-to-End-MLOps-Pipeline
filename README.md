@@ -33,8 +33,8 @@ The project integrates three previously separate stages into one end-to-end MLOp
 - 🧹 **Automated preprocessing** that produces a deterministic, validated dataset from raw CSV files.
 - 🌲 **Random Forest regression** on 20 lagged return features (`return_gold_lag_1..10`, `return_chf_lag_1..10`).
 - 📈 **Chronological train/test split** (`test_size=0.2`) that respects the time ordering of the data.
-- 🧪 **Price-level evaluation** — MAE, RMSE, MAPE, and R² are reported only on the reconstructed gold **price (USD)** level.
-- 📝 **Explicit manual MLflow logging** (no autologging) for parameters, metrics, model, and artifacts.
+- 🧪 **Actual vs prediction evaluation** — model predictions are evaluated against the actual gold **price (USD)**.
+- 📝 **Explicit manual MLflow logging** Manual logging for parameters, metrics, model, and artifacts.
 - 🖼️ **Artifact generation** — actual-vs-predicted plots, residual plots, `metrics.json`, and a test-prediction CSV.
 - ⚙️ **GitHub Actions automation** — a separate preprocessing workflow plus a full end-to-end pipeline.
 - 📦 **Self-contained MLflow Project** that runs independently of the original source directories.
@@ -183,7 +183,8 @@ same store:
 ```bash
 export MLFLOW_TRACKING_URI="http://127.0.0.1:5000/"
 mlflow run ./MLProject --env-manager=local \
-  -P data_path=data/processed/harga_emas_dan_swiss_franc_preprocessing.csv
+  -P data_path=data/processed/harga_emas_dan_swiss_franc_preprocessing.csv \
+  -P raw_price_path="data/raw/XAU_USD Historical Data.csv"
 ```
 
 Or invoke the script directly:
@@ -218,10 +219,8 @@ MLProject/outputs/
 ├── metrics.json                   # Full run summary (params + metrics)
 ├── model/                         # Local copy of the logged model artifact
 └── artifacts/
-    ├── actual_vs_predicted_return.png
-    ├── residual_plot_return.png
-    ├── actual_vs_predicted_price.png   # only when price evaluation is active
-    ├── residual_plot_price.png         # only when price evaluation is active
+    ├── actual_vs_predicted_price.png
+    ├── residual_plot_price.png
     └── test_predictions.csv
 ```
 
@@ -244,14 +243,12 @@ Two workflows live in `.github/workflows/`:
   1. Downloads the `processed-dataset` artifact into `data/processed/`.
   2. Sets up Miniconda (Python 3.11) and installs MLflow.
   3. Initializes the SQLite tracking store and the experiment.
-  4. Runs `mlflow run ./MLProject` with `--env-manager=conda`, passing the processed dataset and raw price paths.
-  5. Verifies that `mlflow_run_id.txt`, `metrics.json`, and the return-level artifacts exist.
+  4. Runs `mlflow run ./MLProject` with `--env-manager=conda`, passing the processed dataset and the required raw price path.
+  5. Verifies that `mlflow_run_id.txt`, `metrics.json`, `test_predictions.csv`, and the price-level plots exist.
   6. Downloads the model artifact and uploads everything under `MLProject/outputs` as the `training-outputs` artifact.
   7. **Optional:** builds and pushes a Docker image if `DOCKERHUB_USERNAME` (variable) and `DOCKERHUB_TOKEN` (secret) are configured; otherwise it is skipped.
 
 Because the training job depends on the preprocessing job (`needs: preprocessing`), training always consumes a freshly regenerated dataset and never a stale one. A failure in any stage fails the pipeline clearly.
-
-> Generated outputs are **not committed** back to the repository. They are stored as workflow artifacts (retained for 14 days) and in the ephemeral MLflow tracking store of the runner.
 
 ---
 
@@ -280,15 +277,15 @@ All logging is **explicit and manual** — no `mlflow.autolog()` or `mlflow.skle
 
 **Logged model** — `mlflow.sklearn.log_model(model, name="model")`.
 
-**Logged artifacts** — actual-vs-predicted plots, residual plots, `metrics.json`, and `test_predictions.csv`.
+**Logged artifacts** — actual-vs-predicted and residual plots (price level only), `metrics.json`, and `test_predictions.csv`.
 
 ### Price-level evaluation
 
-- **Return level:** the model predicts `return_gold` directly; plots are still produced for inspection, but no return-level metrics are reported.
+- **Return level:** the model predicts `return_gold` directly, but no return-level metrics or plots are produced.
 - **Price level (USD):** the raw gold price series is validated against `return_gold` (max absolute difference ≤ `1e-6`), then prices are reconstructed with
-  `P_t = P_{t-1} × (1 + r_t)`. MAE, RMSE, MAPE, and R² are computed only on the reconstructed prices.
+  `P_t = P_{t-1} × (1 + r_t)`. MAE, RMSE, MAPE, and R², together with the actual-vs-predicted and residual plots, are computed only on the reconstructed prices.
 
-If the raw price file is missing or the validation fails, the price-level evaluation is **skipped with a clear warning**, and no metrics are reported. No metrics are ever fabricated.
+If the raw price file is missing or the validation fails, the training run **fails** with a clear error instead of silently skipping price evaluation. No metrics or plots are ever fabricated.
 
 ---
 
@@ -297,7 +294,8 @@ If the raw price file is missing or the validation fails, the price-level evalua
 | Setting | Value / Source |
 | --- | --- |
 | Python | 3.11 |
-| Data paths | `data/raw/` (input), `data/processed/` (output) |
+| Data paths | `data/raw/` (required input), `data/processed/` (generated) |
+| Raw price input (required) | `data/raw/XAU_USD Historical Data.csv` |
 | Tracking URI (script) | `MLFLOW_TRACKING_URI` or `http://127.0.0.1:5000/` |
 | Tracking URI (CI) | `http://127.0.0.1:5000/` |
 | Experiment name | `workflow-ci-random-forest-gold` |
