@@ -17,7 +17,7 @@ permissions:
 env:
   MLFLOW_TRACKING_URI: sqlite:///${{ github.workspace }}/mlflow.db
   MLFLOW_EXPERIMENT_NAME: workflow-ci-random-forest-gold
-  IMAGE_REPO: random-forest-return-gold
+  IMAGE_REPO: mlops-random-forest-gold-prediction
 
 defaults:
   run:

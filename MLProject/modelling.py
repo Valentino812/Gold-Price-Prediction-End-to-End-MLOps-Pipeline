@@ -33,7 +33,7 @@ DEFAULT_RAW_PRICE_FILE = os.path.join(
     "data", "raw", "XAU_USD Historical Data.csv"
 )
 DEFAULT_OUTPUT_DIR = "outputs"
-DEFAULT_TRACKING_URI = "sqlite:///" + os.path.join(BASE_DIR, "mlruns.db")
+DEFAULT_TRACKING_URI = "http://127.0.0.1:5000/"
 
 EXPERIMENT_NAME = "workflow-ci-random-forest-gold"
 

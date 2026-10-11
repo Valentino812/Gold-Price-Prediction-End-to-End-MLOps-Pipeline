@@ -170,12 +170,18 @@ This writes `data/processed/harga_emas_dan_swiss_franc_preprocessing.csv`.
 
 ### 3. Train the model and log to MLflow
 
-Run with the bundled MLflow Project (recommended, reproduces the CI path). Setting
+Tracking is served by a local MLflow server. Start it first:
+
+```bash
+python -m mlflow server --host 127.0.0.1 --port 5000
+```
+
+Then run with the bundled MLflow Project (recommended, reproduces the CI path). Setting
 `MLFLOW_TRACKING_URI` ensures the parent `mlflow run` and the training script share the
 same store:
 
 ```bash
-export MLFLOW_TRACKING_URI="sqlite:///$PWD/MLProject/mlruns.db"
+export MLFLOW_TRACKING_URI="http://127.0.0.1:5000/"
 mlflow run ./MLProject --env-manager=local \
   -P data_path=data/processed/harga_emas_dan_swiss_franc_preprocessing.csv
 ```
@@ -191,15 +197,15 @@ python MLProject/modelling.py \
 
 ### 4. View experiment results
 
-Tracking is stored locally:
+Tracking is stored on the local MLflow server:
 
-- `MLProject/modelling.py` uses `sqlite:///<MLProject>/mlruns.db`.
+- `MLProject/modelling.py` uses `http://127.0.0.1:5000/`.
 - Override it with the `MLFLOW_TRACKING_URI` environment variable.
 
-Launch the MLflow UI:
+Start the MLflow server (which also serves the UI):
 
 ```bash
-MLFLOW_TRACKING_URI=sqlite:///$PWD/MLProject/mlruns.db mlflow ui
+python -m mlflow server --host 127.0.0.1 --port 5000
 ```
 
 Then open `http://127.0.0.1:5000`.
@@ -293,8 +299,8 @@ If the raw price file is missing or the validation fails, the price-level evalua
 | --- | --- |
 | Python | 3.11 |
 | Data paths | `data/raw/` (input), `data/processed/` (output) |
-| Tracking URI (script) | `MLFLOW_TRACKING_URI` or `sqlite:///<MLProject>/mlruns.db` |
-| Tracking URI (CI) | `sqlite:///${{ github.workspace }}/mlflow.db` |
+| Tracking URI (script) | `MLFLOW_TRACKING_URI` or `http://127.0.0.1:5000/` |
+| Tracking URI (CI) | `http://127.0.0.1:5000/` |
 | Experiment name | `workflow-ci-random-forest-gold` |
 | Model artifact path | `model` |
 
