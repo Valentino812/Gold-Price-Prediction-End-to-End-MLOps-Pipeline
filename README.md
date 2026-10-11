@@ -25,7 +25,6 @@ The project integrates three previously separate stages into one end-to-end MLOp
 2. **Model development** — a `RandomForestRegressor` is trained with a chronological train/test split and evaluated on the reconstructed price (USD) level.
 3. **CI & experiment tracking** — every training run is tracked in MLflow with explicit manual logging, and the whole flow is orchestrated by GitHub Actions.
 
-> The design goal is **reproducibility and minimal change**: the original preprocessing logic and the original MLflow Project modeling implementation are preserved, with only the necessary path, integration, logging, and artifact adjustments.
 
 ---
 
@@ -276,9 +275,9 @@ All logging is **explicit and manual** — no `mlflow.autolog()` or `mlflow.skle
 - `train_price_MAE`, `train_price_RMSE`, `train_price_MAPE`, `train_price_R2`
 - `test_price_MAE`, `test_price_RMSE`, `test_price_MAPE`, `test_price_R2`
 
-**Logged model** — `mlflow.sklearn.log_model(model, name="model")`.
+**Logged model** — `mlflow.sklearn.log_model(model, name="model")`; `export_model_artifact` then downloads the model locally and re-logs the same files as a `model_snapshot` artifact copy within the run.
 
-**Logged artifacts** — actual-vs-predicted and residual plots (price level only), `metrics.json`, and `test_predictions.csv`.
+**Logged artifacts** — actual-vs-predicted and residual plots (price level only), `metrics.json`, `test_predictions.csv`, and the `model_snapshot` copy of the model directory.
 
 ### Price-level evaluation
 
@@ -301,6 +300,7 @@ If the raw price file is missing or the validation fails, the training run **fai
 | Tracking URI (CI) | `http://127.0.0.1:5000/` |
 | Experiment name | `workflow-ci-random-forest-gold` |
 | Model artifact path | `model` |
+| Model snapshot artifact path | `model_snapshot` |
 
 - Paths are resolved by the modelling script relative to the repository, so it does not depend on the current working directory being a specific source folder.
 - No credentials or absolute local paths are committed. Optional Docker publishing uses GitHub Actions variables/secrets only.
@@ -318,6 +318,6 @@ If the raw price file is missing or the validation fails, the training run **fai
 
 <div align="center">
 
-*Built with ❤️ for reproducible machine learning.*
+*Built with ❤️ by Mika Valentino.*
 
 </div>

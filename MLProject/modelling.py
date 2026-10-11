@@ -76,6 +76,7 @@ MAX_DEPTH = None
 SPLIT_STRATEGY = "chronological"
 
 MODEL_ARTIFACT_PATH = "model"
+MODEL_SNAPSHOT_PATH = "model_snapshot"
 RUN_ID_FILENAME = "mlflow_run_id.txt"
 METRICS_FILENAME = "metrics.json"
 ARTIFACTS_SUBDIR = "artifacts"
@@ -201,7 +202,6 @@ def print_metrics(label: str, metrics: dict) -> None:
         print(f"{name:>5}: {metrics[name]:.6f}")
 
 
-# Load Raw Prices
 def load_raw_prices(path: str) -> pd.DataFrame:
     if not os.path.exists(path):
         raise FileNotFoundError(f"Raw price file not found: {path}")
@@ -259,11 +259,11 @@ def attach_prices(df: pd.DataFrame, raw: pd.DataFrame) -> pd.DataFrame:
 
 
 def reconstruct_predicted_prices(prev_price, y_pred_return):
-    """Reconstruct predicted returns into prices via P_t = P_{t-1} * (1 + r_t)."""
+    """Reconstruct predicted returns into prices using P_t = P_{t-1} * (1 + r_t)."""
     return prev_price.to_numpy() * (1.0 + y_pred_return)
 
 
-# Artifact
+# Artifact 1
 def save_actual_vs_predicted(dates, y_true, y_pred, path, title, ylabel):
     plt.figure(figsize=(12, 5))
     plt.plot(dates, y_true, label="Actual", linewidth=1)
@@ -277,7 +277,7 @@ def save_actual_vs_predicted(dates, y_true, y_pred, path, title, ylabel):
     plt.close()
     return path
 
-
+# Artifact 2
 def save_residual_plot(dates, y_true, y_pred, path, title, ylabel):
     residuals = y_true - y_pred
     plt.figure(figsize=(12, 5))
@@ -327,14 +327,16 @@ def write_outputs(output_dir: str, run_id: str, summary: dict) -> None:
     print(f"Metrics saved to  : {metrics_path}")
 
 
-def download_model_artifact(run_id: str, output_dir: str) -> str:
+def export_model_artifact(run_id: str, output_dir: str) -> str:
     model_uri = f"runs:/{run_id}/{MODEL_ARTIFACT_PATH}"
     local_path = mlflow.artifacts.download_artifacts(model_uri, dst_path=output_dir)
     print(f"Model artifact ({model_uri}) copied to: {local_path}")
+    mlflow.log_artifacts(local_path, artifact_path=MODEL_SNAPSHOT_PATH)
+    print(f"Model artifact stored in MLflow at: {MODEL_SNAPSHOT_PATH}")
     return local_path
 
 
-# Main
+# Main Function
 def main(argv=None) -> None:
     args = parse_args(argv)
 
@@ -512,7 +514,7 @@ def main(argv=None) -> None:
                 )
             mlflow.log_artifact(artifact_path)
 
-        download_model_artifact(run_id, output_dir)
+        export_model_artifact(run_id, output_dir)
 
         print(f"\nDone. MLflow run id: {run_id}")
 
