@@ -1,4 +1,4 @@
-name: End-to-End MLOps Pipeline - Gold Return
+name: Modelling Random Forest Regression
 
 on:
   push:

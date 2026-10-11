@@ -27,7 +27,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 
-# Configuration 
+# Configuration
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(BASE_DIR)
 
@@ -91,37 +91,36 @@ RAW_PRICE_DATE_FORMAT = "%m/%d/%Y"
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Pelatihan ulang RandomForestRegressor untuk return_gold."
+        description="Retrain RandomForestRegressor for return_gold."
     )
     parser.add_argument(
         "--data-path",
         default=DEFAULT_DATA_FILE,
-        help="Path dataset hasil preprocessing (default: %(default)s).",
+        help="Path to the preprocessed dataset (default: %(default)s).",
     )
     parser.add_argument(
         "--raw-price-path",
         default=DEFAULT_RAW_PRICE_FILE,
         help=(
-            "Path dataset harga emas mentah untuk evaluasi tingkat harga "
+            "Path to the raw gold price dataset for price-level evaluation "
             "(default: %(default)s)."
         ),
     )
     parser.add_argument(
         "--output-dir",
         default=DEFAULT_OUTPUT_DIR,
-        help="Direktori penyimpanan run id, metrik, dan artefak (default: %(default)s).",
+        help="Directory to store the run id, metrics, and artifacts (default: %(default)s).",
     )
     parser.add_argument(
         "--n-estimators",
         type=int,
         default=N_ESTIMATORS,
-        help="Jumlah pohon RandomForest (default: %(default)s).",
+        help="Number of RandomForest trees (default: %(default)s).",
     )
     return parser.parse_args(argv)
 
 
 def _resolve_path(path: str, extra_dirs=()) -> str:
-    """Cari file pada beberapa kandidat lokasi agar konsisten lintas CWD."""
     expanded = os.path.expanduser(path)
     candidates = [
         expanded,
@@ -139,7 +138,7 @@ def _resolve_path(path: str, extra_dirs=()) -> str:
             return os.path.abspath(candidate)
 
     raise FileNotFoundError(
-        "File tidak ditemukan. Lokasi yang dicoba: "
+        "File not found. Locations tried: "
         + ", ".join(sorted({os.path.abspath(c) for c in candidates if c}))
     )
 
@@ -154,17 +153,17 @@ def resolve_raw_price_path(path: str) -> str:
 
 def load_dataset(path: str) -> pd.DataFrame:
     if not os.path.isfile(path):
-        raise FileNotFoundError(f"Dataset tidak ditemukan: {path}")
+        raise FileNotFoundError(f"Dataset not found: {path}")
 
     df = pd.read_csv(path)
 
     required = [DATE_COLUMN, TARGET_COLUMN] + FEATURE_COLUMNS
     missing = [col for col in required if col not in df.columns]
     if missing:
-        raise ValueError(f"Kolom wajib tidak ditemukan pada dataset: {missing}")
+        raise ValueError(f"Required columns not found in the dataset: {missing}")
 
     if df[required].isna().any().any():
-        raise ValueError("Dataset mengandung nilai kosong pada kolom yang dibutuhkan.")
+        raise ValueError("The dataset contains missing values in the required columns.")
 
     df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
     df = df.sort_values(DATE_COLUMN).reset_index(drop=True)
@@ -197,7 +196,7 @@ def evaluate(y_true, y_pred) -> dict:
 
 
 def print_metrics(label: str, metrics: dict) -> None:
-    print(f"\n===== Metrik {label} =====")
+    print(f"\n===== {label} Metrics =====")
     for name in ["MAE", "RMSE", "MAPE", "R2"]:
         print(f"{name:>5}: {metrics[name]:.6f}")
 
@@ -205,13 +204,13 @@ def print_metrics(label: str, metrics: dict) -> None:
 # Load Raw Prices
 def load_raw_prices(path: str) -> pd.DataFrame:
     if not os.path.exists(path):
-        raise FileNotFoundError(f"File harga mentah tidak ditemukan: {path}")
+        raise FileNotFoundError(f"Raw price file not found: {path}")
 
     raw = pd.read_csv(path)
     required = [RAW_PRICE_DATE_COLUMN, RAW_PRICE_VALUE_COLUMN]
     missing = [col for col in required if col not in raw.columns]
     if missing:
-        raise ValueError(f"Kolom harga mentah tidak ditemukan: {missing}")
+        raise ValueError(f"Raw price columns not found: {missing}")
 
     raw = raw[[RAW_PRICE_DATE_COLUMN, RAW_PRICE_VALUE_COLUMN]].copy()
     raw["Date"] = pd.to_datetime(
@@ -233,15 +232,14 @@ def load_raw_prices(path: str) -> pd.DataFrame:
 
 
 def validate_returns(df: pd.DataFrame, raw: pd.DataFrame) -> float:
-    """Memastikan return_gold dataset konsisten dengan pct_change harga mentah."""
     raw_ret = raw.assign(ret=raw["Price"].pct_change()).set_index("Date")["ret"]
     recomputed = df["Date"].map(raw_ret)
     max_diff = float((df[TARGET_COLUMN] - recomputed).abs().max())
-    print(f"Validasi return vs harga mentah: max abs diff = {max_diff:.3e}")
+    print(f"Return vs raw price validation: max abs diff = {max_diff:.3e}")
     if max_diff > 1e-6:
         raise ValueError(
-            "return_gold pada dataset tidak cocok dengan harga mentah. Periksa kolom "
-            "tanggal/harga atau format tanggal pada data harga mentah."
+            "return_gold in the dataset does not match the raw price. Check the "
+            "date/price columns or the date format of the raw price data."
         )
     return max_diff
 
@@ -256,20 +254,20 @@ def attach_prices(df: pd.DataFrame, raw: pd.DataFrame) -> pd.DataFrame:
     df["prev_price"] = df["Date"].map(price_map["prev_price"])
 
     if df["actual_price"].isna().any() or df["prev_price"].isna().any():
-        raise ValueError("Harga mentah tidak mencakup seluruh tanggal dataset.")
+        raise ValueError("The raw price does not cover all dataset dates.")
     return df
 
 
 def reconstruct_predicted_prices(prev_price, y_pred_return):
-    """Rekonstruksi return prediksi menjadi harga via P_t = P_{t-1} * (1 + r_t)."""
+    """Reconstruct predicted returns into prices via P_t = P_{t-1} * (1 + r_t)."""
     return prev_price.to_numpy() * (1.0 + y_pred_return)
 
 
 # Artifact
 def save_actual_vs_predicted(dates, y_true, y_pred, path, title, ylabel):
     plt.figure(figsize=(12, 5))
-    plt.plot(dates, y_true, label="Aktual", linewidth=1)
-    plt.plot(dates, y_pred, label="Prediksi", linewidth=1)
+    plt.plot(dates, y_true, label="Actual", linewidth=1)
+    plt.plot(dates, y_pred, label="Predicted", linewidth=1)
     plt.title(title)
     plt.xlabel("Date")
     plt.ylabel(ylabel)
@@ -295,7 +293,6 @@ def save_residual_plot(dates, y_true, y_pred, path, title, ylabel):
 
 
 def ensure_experiment(name: str) -> None:
-    """Buat experiment bila belum ada dengan artifact root absolut."""
     existing = mlflow.get_experiment_by_name(name)
     if existing is not None:
         return
@@ -326,15 +323,14 @@ def write_outputs(output_dir: str, run_id: str, summary: dict) -> None:
         json.dump(summary, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
 
-    print(f"Run ID disimpan di : {run_id_path}")
-    print(f"Metrik disimpan di : {metrics_path}")
+    print(f"Run ID saved to   : {run_id_path}")
+    print(f"Metrics saved to  : {metrics_path}")
 
 
 def download_model_artifact(run_id: str, output_dir: str) -> str:
-    """Unduh artefak model dari run terbaru ke output_dir/model."""
     model_uri = f"runs:/{run_id}/{MODEL_ARTIFACT_PATH}"
     local_path = mlflow.artifacts.download_artifacts(model_uri, dst_path=output_dir)
-    print(f"Model artefak ({model_uri}) tersalin ke: {local_path}")
+    print(f"Model artifact ({model_uri}) copied to: {local_path}")
     return local_path
 
 
@@ -362,8 +358,8 @@ def main(argv=None) -> None:
         raw = load_raw_prices(raw_price_path)
     except FileNotFoundError as exc:
         raise FileNotFoundError(
-            "Data harga mentah (harga emas USD) wajib tersedia untuk evaluasi "
-            "tingkat harga. "
+            "The raw gold price data (USD) is required for price-level "
+            "evaluation. "
             f"{exc}"
         ) from exc
 
@@ -374,16 +370,16 @@ def main(argv=None) -> None:
 
     print(f"Tracking URI         : {tracking_uri}")
     print(f"Dataset              : {data_path}")
-    print(f"Data harga mentah    : {raw_price_path}")
-    print(f"Jumlah baris         : {len(df)}")
+    print(f"Raw price data       : {raw_price_path}")
+    print(f"Number of rows       : {len(df)}")
     print(
-        f"Rentang tanggal      : {df[DATE_COLUMN].min().date()} "
-        f"s.d. {df[DATE_COLUMN].max().date()}"
+        f"Date range           : {df[DATE_COLUMN].min().date()} "
+        f"to {df[DATE_COLUMN].max().date()}"
     )
-    print(f"Fitur                : {FEATURE_COLUMNS}")
+    print(f"Features             : {FEATURE_COLUMNS}")
     print(f"Target               : {TARGET_COLUMN}")
-    print(f"Data training/testing: {len(x_train)} / {len(x_test)}")
-    print(f"Evaluasi harga USD   : aktif")
+    print(f"Train/test rows      : {len(x_train)} / {len(x_test)}")
+    print(f"USD price evaluation : active")
 
     params = {
         "model": "RandomForestRegressor",
@@ -457,8 +453,8 @@ def main(argv=None) -> None:
         test_price_true = test_df["actual_price"].to_numpy()
         test_price_metrics = evaluate(test_price_true, test_price_pred)
 
-        print_metrics("Training (Harga USD)", train_price_metrics)
-        print_metrics("Testing (Harga USD)", test_price_metrics)
+        print_metrics("Training (USD Price)", train_price_metrics)
+        print_metrics("Testing (USD Price)", test_price_metrics)
 
         logged_metrics.update(
             {f"train_price_{k}": v for k, v in train_price_metrics.items()}
@@ -472,15 +468,15 @@ def main(argv=None) -> None:
             test_price_true,
             test_price_pred,
             os.path.join(artifacts_dir, PRICE_PLOT_FILENAME),
-            "Aktual vs Prediksi Harga Emas (USD) - Data Testing",
-            "Harga Emas (USD)",
+            "Actual vs Predicted Gold Price (USD)",
+            "Gold Price (USD)",
         )
         price_residual_path = save_residual_plot(
             test_df[DATE_COLUMN],
             test_price_true,
             test_price_pred,
             os.path.join(artifacts_dir, PRICE_RESIDUAL_FILENAME),
-            "Residual Harga Emas (Aktual - Prediksi) pada Data Testing",
+            "Gold Price Residual (Actual - Predicted)",
             "Residual (USD)",
         )
         artifact_paths.extend([price_plot_path, price_residual_path])
@@ -512,13 +508,13 @@ def main(argv=None) -> None:
         for artifact_path in artifact_paths:
             if not os.path.isfile(artifact_path):
                 raise FileNotFoundError(
-                    f"Artefak wajib tidak ditemukan: {artifact_path}"
+                    f"Required artifact not found: {artifact_path}"
                 )
             mlflow.log_artifact(artifact_path)
 
         download_model_artifact(run_id, output_dir)
 
-        print(f"\nSelesai. MLflow run id: {run_id}")
+        print(f"\nDone. MLflow run id: {run_id}")
 
 
 if __name__ == "__main__":

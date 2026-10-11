@@ -8,6 +8,7 @@
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-%E2%89%A51.3-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
 [![MLflow](https://img.shields.io/badge/MLflow-%E2%89%A52.16-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org/)
 [![pandas](https://img.shields.io/badge/pandas-%E2%89%A52.0-150458?logo=pandas&logoColor=white)](https://pandas.pydata.org/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![GitHub Actions](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](https://github.com/features/actions)
 
 </div>
@@ -83,7 +84,7 @@ gold-return-mlops/
 ├── .github/
 │   └── workflows/
 │       ├── preprocessing.yml        # Standalone + reusable preprocessing workflow
-│       └── mlops-pipeline.yml       # End-to-end: preprocessing -> train -> log
+│       └── modelling.yml            # End-to-end: preprocessing -> train -> log
 ├── data/
 │   ├── raw/                         # Committed raw datasets (Investing.com)
 │   │   ├── XAU_USD Historical Data.csv
@@ -107,7 +108,7 @@ gold-return-mlops/
 | `preprocessing/preprocessing.py` | Loads raw data, cleans it, builds lag features, writes the processed CSV. |
 | `MLProject/modelling.py` | Trains the Random Forest, evaluates at the reconstructed price level, logs everything manually to MLflow, writes artifacts. |
 | `.github/workflows/preprocessing.yml` | Runs and validates preprocessing; uploads the processed dataset as an artifact. Called by the pipeline. |
-| `.github/workflows/mlops-pipeline.yml` | Orchestrates preprocessing → training → MLflow logging, and optionally builds/pushes a Docker image. |
+| `.github/workflows/modelling.yml` | Orchestrates preprocessing → training → MLflow logging, and optionally builds/pushes a Docker image. |
 
 ---
 
@@ -235,7 +236,7 @@ Two workflows live in `.github/workflows/`:
 - **Triggers:** push to `main` touching `data/raw/**`, `preprocessing/**`, or the workflow file; `workflow_dispatch`; and `workflow_call` (reusable).
 - Installs `preprocessing/requirements.txt`, runs the preprocessing script, validates the output schema (22 columns, no missing values), and uploads the processed CSV as the `processed-dataset` artifact.
 
-### `mlops-pipeline.yml`
+### `modelling.yml`
 
 - **Triggers:** push to `main` touching raw data, preprocessing, the MLflow Project, or workflows; `workflow_dispatch`.
 - **Job `preprocessing`:** calls the reusable `preprocessing.yml`.
