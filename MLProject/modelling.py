@@ -422,14 +422,7 @@ def main(argv=None) -> None:
         y_pred_train = model.predict(x_train)
         y_pred_test = model.predict(x_test)
 
-        train_metrics = evaluate(y_train, y_pred_train)
-        test_metrics = evaluate(y_test, y_pred_test)
-
-        print_metrics("Training (Return)", train_metrics)
-        print_metrics("Testing (Return)", test_metrics)
-
-        logged_metrics = {f"train_{k}": v for k, v in train_metrics.items()}
-        logged_metrics.update({f"test_{k}": v for k, v in test_metrics.items()})
+        logged_metrics = {}
 
         # ----- Artefak tingkat return -----
         return_plot_path = save_actual_vs_predicted(
@@ -464,11 +457,7 @@ def main(argv=None) -> None:
             "split_strategy": SPLIT_STRATEGY,
             "n_train": len(x_train),
             "n_test": len(x_test),
-            "predictions": {
-                "return": {"train": train_metrics, "test": test_metrics},
-            },
-            "train": train_metrics,
-            "test": test_metrics,
+            "predictions": {},
         }
 
         artifact_paths = [return_plot_path, return_residual_path]
@@ -533,7 +522,8 @@ def main(argv=None) -> None:
             summary["train_price"] = train_price_metrics
             summary["test_price"] = test_price_metrics
 
-        mlflow.log_metrics(logged_metrics)
+        if logged_metrics:
+            mlflow.log_metrics(logged_metrics)
         log_model(model)
 
         write_outputs(output_dir, run_id, summary)

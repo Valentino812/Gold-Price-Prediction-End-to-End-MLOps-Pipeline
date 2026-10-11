@@ -21,7 +21,7 @@ This repository provides a clean, self-contained, and reproducible workflow for 
 The project integrates three previously separate stages into one end-to-end MLOps repository:
 
 1. **Automated preprocessing** — raw Investing.com datasets are cleaned, aligned, and transformed into a modeling-ready dataset.
-2. **Model development** — a `RandomForestRegressor` is trained with a chronological train/test split and evaluated on both the return level and the reconstructed price (USD) level.
+2. **Model development** — a `RandomForestRegressor` is trained with a chronological train/test split and evaluated on the reconstructed price (USD) level.
 3. **CI & experiment tracking** — every training run is tracked in MLflow with explicit manual logging, and the whole flow is orchestrated by GitHub Actions.
 
 > The design goal is **reproducibility and minimal change**: the original preprocessing logic and the original MLflow Project modeling implementation are preserved, with only the necessary path, integration, logging, and artifact adjustments.
@@ -33,7 +33,7 @@ The project integrates three previously separate stages into one end-to-end MLOp
 - 🧹 **Automated preprocessing** that produces a deterministic, validated dataset from raw CSV files.
 - 🌲 **Random Forest regression** on 20 lagged return features (`return_gold_lag_1..10`, `return_chf_lag_1..10`).
 - 📈 **Chronological train/test split** (`test_size=0.2`) that respects the time ordering of the data.
-- 🧪 **Dual-level evaluation** — metrics at the return level and at the reconstructed gold **price (USD)** level.
+- 🧪 **Price-level evaluation** — MAE, RMSE, MAPE, and R² are reported only on the reconstructed gold **price (USD)** level.
 - 📝 **Explicit manual MLflow logging** (no autologging) for parameters, metrics, model, and artifacts.
 - 🖼️ **Artifact generation** — actual-vs-predicted plots, residual plots, `metrics.json`, and a test-prediction CSV.
 - ⚙️ **GitHub Actions automation** — a separate preprocessing workflow plus a full end-to-end pipeline.
@@ -55,7 +55,7 @@ Raw Data                 Preprocessing              Processed Dataset
       │                                    Random Forest Training
       │                                                      │
       │                                                      ▼
-      │                                          Evaluation (Return + Price)
+      │                                          Evaluation (Price / USD)
       │                                                      │
       └──────────────────────────────────────────▶  MLflow Logging & Artifacts
 ```
@@ -69,7 +69,7 @@ flowchart LR
     C --> D[MLflow Project<br/>MLProject]
     A --> D
     D --> E[Random Forest<br/>training]
-    E --> F[Evaluation<br/>Return + Price]
+    E --> F[Evaluation<br/>Price / USD]
     F --> G[MLflow Tracking<br/>params, metrics, model]
     F --> H[Artifacts<br/>plots, metrics.json, predictions]
 ```
@@ -105,7 +105,7 @@ gold-return-mlops/
 | Path | Responsibility |
 | --- | --- |
 | `preprocessing/preprocessing.py` | Loads raw data, cleans it, builds lag features, writes the processed CSV. |
-| `MLProject/modelling.py` | Trains the Random Forest, evaluates at return and price levels, logs everything manually to MLflow, writes artifacts. |
+| `MLProject/modelling.py` | Trains the Random Forest, evaluates at the reconstructed price level, logs everything manually to MLflow, writes artifacts. |
 | `.github/workflows/preprocessing.yml` | Runs and validates preprocessing; uploads the processed dataset as an artifact. Called by the pipeline. |
 | `.github/workflows/mlops-pipeline.yml` | Orchestrates preprocessing → training → MLflow logging, and optionally builds/pushes a Docker image. |
 
@@ -273,23 +273,22 @@ All logging is **explicit and manual** — no `mlflow.autolog()` or `mlflow.skle
 | `n_features` / `feature_names` | Feature count and names |
 | `n_train` / `n_test` | Train/test row counts |
 
-**Logged metrics** (return level, and price level when available)
+**Logged metrics** (price level / USD only)
 
-- `train_MAE`, `train_MSE`, `train_RMSE`, `train_R2`
-- `test_MAE`, `test_MSE`, `test_RMSE`, `test_R2`
-- `train_price_*` and `test_price_*` (MAE, MSE, RMSE, R²) when price evaluation is active
+- `train_price_MAE`, `train_price_RMSE`, `train_price_MAPE`, `train_price_R2`
+- `test_price_MAE`, `test_price_RMSE`, `test_price_MAPE`, `test_price_R2`
 
 **Logged model** — `mlflow.sklearn.log_model(model, name="model")`.
 
 **Logged artifacts** — actual-vs-predicted plots, residual plots, `metrics.json`, and `test_predictions.csv`.
 
-### Return-level vs price-level evaluation
+### Price-level evaluation
 
-- **Return level:** the model predicts `return_gold` directly; metrics are computed on the returns.
+- **Return level:** the model predicts `return_gold` directly; plots are still produced for inspection, but no return-level metrics are reported.
 - **Price level (USD):** the raw gold price series is validated against `return_gold` (max absolute difference ≤ `1e-6`), then prices are reconstructed with
-  `P_t = P_{t-1} × (1 + r_t)`. Metrics and plots are generated for the reconstructed prices.
+  `P_t = P_{t-1} × (1 + r_t)`. MAE, RMSE, MAPE, and R² are computed only on the reconstructed prices.
 
-If the raw price file is missing or the validation fails, the price-level evaluation is **skipped with a clear warning**, and only the return-level results are reported. No price metrics are ever fabricated.
+If the raw price file is missing or the validation fails, the price-level evaluation is **skipped with a clear warning**, and no metrics are reported. No metrics are ever fabricated.
 
 ---
 
