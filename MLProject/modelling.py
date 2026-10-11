@@ -13,7 +13,12 @@ import mlflow
 import mlflow.sklearn
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_absolute_percentage_error,
+    mean_squared_error,
+    r2_score,
+)
 
 for _stream in (sys.stdout, sys.stderr):
     try:
@@ -62,6 +67,7 @@ FEATURE_COLUMNS = [
     "return_chf_lag_10",
 ]
 
+# Random Forest Hyperparameter
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
 N_ESTIMATORS = 100
@@ -186,15 +192,15 @@ def evaluate(y_true, y_pred) -> dict:
     mse = mean_squared_error(y_true, y_pred)
     return {
         "MAE": float(mean_absolute_error(y_true, y_pred)),
-        "MSE": float(mse),
         "RMSE": float(mse ** 0.5),
+        "MAPE": float(mean_absolute_percentage_error(y_true, y_pred)),
         "R2": float(r2_score(y_true, y_pred)),
     }
 
 
 def print_metrics(label: str, metrics: dict) -> None:
     print(f"\n===== Metrik {label} =====")
-    for name in ["MAE", "MSE", "RMSE", "R2"]:
+    for name in ["MAE", "RMSE", "MAPE", "R2"]:
         print(f"{name:>5}: {metrics[name]:.6f}")
 
 
@@ -304,12 +310,10 @@ def ensure_experiment(name: str) -> None:
 
 
 def log_model(model) -> str:
-    """Catat model pada artefak MLflow dengan lokasi konsisten 'model'."""
     params = inspect.signature(mlflow.sklearn.log_model).parameters
     kwargs = {}
     if "skops_trusted_types" in params:
-        # MLflow >= 3.5 memakai serialisasi skops; RandomForest yang dilatih
-        # sendiri perlu menandai tipe pohon sebagai terpercaya.
+
         kwargs["skops_trusted_types"] = ["sklearn.tree._tree.Tree"]
     if "name" in params:
         return mlflow.sklearn.log_model(model, name=MODEL_ARTIFACT_PATH, **kwargs)
@@ -352,8 +356,6 @@ def main(argv=None) -> None:
     artifacts_dir = os.path.join(output_dir, ARTIFACTS_SUBDIR)
     os.makedirs(artifacts_dir, exist_ok=True)
 
-    # Jika dijalankan oleh MLflow Project, MLFLOW_RUN_ID sudah diisi dan
-    # experiment sudah dibuat oleh perintah `mlflow run`.
     running_via_project = bool(os.environ.get("MLFLOW_RUN_ID"))
     if not running_via_project:
         ensure_experiment(EXPERIMENT_NAME)
