@@ -113,18 +113,18 @@ gold-return-mlops/
 
 ## 📊 Dataset and Features
 
-The raw inputs are two Investing.com historical CSVs:
+The raw inputs are two Investing.com historical CSVs, sourced from:
 
-| File | Description | Key columns used |
-| --- | --- | --- |
-| `data/raw/XAU_USD Historical Data.csv` | Daily gold price in USD | `Date`, `Price` |
-| `data/raw/CHF_USD Historical Data.csv` | Daily Swiss franc price in USD | `Date`, `Price` |
+| File | Description | Key columns used | Source |
+| --- | --- | --- | --- |
+| `data/raw/XAU_USD Historical Data.csv` | Daily gold price in USD | `Date`, `Price` | [XAU/USD Historical Data](https://www.investing.com/currencies/xau-usd-historical-data) |
+| `data/raw/CHF_USD Historical Data.csv` | Daily Swiss franc price in USD | `Date`, `Price` | [CHF/USD Historical Data](https://www.investing.com/currencies/chf-usd-historical-data) |
 
 **Preprocessing steps** (preserved from the original implementation):
 
 1. Select `Date` and `Price` from each dataset.
 2. Convert types (dates via `%m/%d/%Y`, prices with comma removal).
-3. Validate, sort, and restrict to `2010-01-01 … 2025-12-31`.
+3. Validate, sort, and restrict to `2010-01-01 - 2025-12-31` period.
 4. Drop rows with missing values in used columns.
 5. Remove weekend rows.
 6. Inner-join the two datasets on date.
@@ -285,7 +285,7 @@ All logging is **explicit and manual** — no `mlflow.autolog()` or `mlflow.skle
 - **Price level (USD):** the raw gold price series is validated against `return_gold` (max absolute difference ≤ `1e-6`), then prices are reconstructed with
   `P_t = P_{t-1} × (1 + r_t)`. MAE, RMSE, MAPE, and R², together with the actual-vs-predicted and residual plots, are computed only on the reconstructed prices.
 
-If the raw price file is missing or the validation fails, the training run **fails** with a clear error instead of silently skipping price evaluation. No metrics or plots are ever fabricated.
+If the raw price file is missing or the validation fails, the training run **fails** with error 
 
 ---
 
